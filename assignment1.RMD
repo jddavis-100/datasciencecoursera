@@ -1,5 +1,5 @@
 ---
-title: "Reproducible Research Fitness Assignment 1"
+title: "Reproducible Research Fitness Assignment 1 "
 output: html_document
   html_document:
     keep_md: true
