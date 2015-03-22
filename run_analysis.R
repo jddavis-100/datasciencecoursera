@@ -3,12 +3,17 @@
 # 2. extracts the measurements on the mean and std dev for each measurement.
 # 3. uses descriptive activity names to name the activities in the data set
 # 4. appropriately labels the data set with descriptive variable names
-# 5. from the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+# 5. from the data set in step 4, creates a second, independent tidy data set with the average of each 
+#variable for each activity and each subject.
 #the codebook is embedded within this text
-#the final variables include the subject number, the activity the subject was performing, the variable (i.e. mean and std deviation of measurement type)  The dimensions of the table are 88 variables and 1934 observations because incomplete observations are omitted. Soft wrap for ease of reading.
+#the final variables include the subject number, the activity the subject was performing, 
+#the variable (i.e. mean and std deviation of measurement type)  The dimensions of the table are 88 variables 
+#and 1934 observations because incomplete observations are omitted. Soft wrap for ease of reading.
 
 
-#1 Merge the training and test sets to create one data set and #3, use descriptive activity names to name the activities in the data set, and #4 appropriately labels the data set with descriptive variable names
+#1 Merge the training and test sets to create one data set and #3, 
+#use descriptive activity names to name the activities in the data set, 
+#and #4 appropriately labels the data set with descriptive variable names
 
 X_train <- read.table("~/Downloads/UCI HAR Dataset/train/X_train.txt", quote="\"", stringsAsFactors=FALSE)
 
@@ -36,7 +41,8 @@ activity_labels <- read.table("~/Downloads/UCI HAR Dataset/activity_labels.txt",
 
 View(activity_labels)
 
-subject_activity <- full_join(subject_all, activity_labels) #descriptive activity names for all the activities in the data set on each subject
+subject_activity <- full_join(subject_all, activity_labels) 
+#descriptive activity names for all the activities in the data set on each subject
 
 subject.no <- subject_activity$V1
 activity <- subject_activity$V2
@@ -54,7 +60,8 @@ y_test <- read.table("~/Downloads/UCI HAR Dataset/train/y_train.txt", quote="\""
 y_all <- bind_rows(y_train, y_test) #add all the training and test data together
 View(y_all)
 
-#just for good measure I create .csv output files to save and check data or to send to those who prefer other data analysis methods
+#just for good measure I create .csv output files to 
+#save and check data or to send to those who prefer other data analysis methods
 
 write.csv(all_data, "all_data.csv")
 write.csv(subject_activity, "subject_activity.csv")
@@ -62,7 +69,8 @@ write.csv(y_all, "all_y_data.csv")
 
 #2. & #4 Extracts measurements on the mean and std for each measurement; labels correctly with descriptive name
 
-#The first 6 columns in the all_data set have the mean and std, the rest are other measurements or quantiles.  Below is a new data set giving just these measurements.
+#The first 6 columns in the all_data set have the mean and std, the rest are other measurements or quantiles.  
+#Below is a new data set giving just these measurements.
 
 
 mean <- select(all_data, contains("mean"))
