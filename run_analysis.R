@@ -4,6 +4,8 @@
 # 3. uses descriptive activity names to name the activities in the data set
 # 4. appropriately labels the data set with descriptive variable names
 # 5. from the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+#the codebook is embedded within this text
+#the final variables include the subject number, the activity the subject was performing, the variable (i.e. mean and std deviation of measurement type)  The dimensions of the table are 88 variables and 1934 observations because incomplete observations are omitted.
 
 
 #1 Merge the training and test sets to create one data set and #3, use descriptive activity names to name the activities in the data set, and #4 appropriately labels the data set with descriptive variable names
