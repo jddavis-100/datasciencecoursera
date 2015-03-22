@@ -82,6 +82,8 @@ write.csv(mean.std.subject.activity, "mean.std.subject.activity.csv")
 
 #5 Create a tidy data set with average of each variable for each activity by each subject
 
-tidy <- na.omit(mean.std.subject.activity) #data set has no missing variables and contains all the means (averages) and std for each subject by activity in which they participated
+tidy <- na.omit(mean.std.subject.activity) 
+#data set has no missing variables and contains all the means (averages) and standard deviation 
+#for each subject by activity in which they participated
 
 write.table(tidy, row.name=FALSE, "tidy.txt")
