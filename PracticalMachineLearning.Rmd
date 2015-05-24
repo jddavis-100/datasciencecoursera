@@ -1,0 +1,281 @@
+---
+title: "A Practical Machine Learning Approach to Prediction on Exercise Data"
+date: "May 23, 2015"
+output: html_document
+fontsize: 10
+theme: readable
+---
+
+##Background
+
+The goal of this project's analysis is to predict classes of exercises based upon self-quantified movement.  In this study the author's took a group of health enthuasists who normally take measurements of their exercise regularly to improve their health using devices such as Jawbone Up, Nike FuelBand and Fitbit. The data from the current study was quantified to determine how well participants performed barbell lifts.  They were asked to perform the barbell ifts both correctly and incorrectly in 5 different ways.  These methods were then quantified using 160 features batherd from acclerometers on the belt, forearm, and dumbell of 6 participants. More information is provided at http://groupwar.les.inf.puc-rio.br/har.
+
+Both training and testing sets were kindly provided by authors of the published study:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+##Raw Data Assessment
+
+The full training data set contains 19622 observations and 160 features. It is unlikely that all these features are necessary to make accurate predictions.  To address this a practical approach is taken to reducing data dimensionality. We will do this with a bit of pre-processing of the data before splitting the "training" data into a training set and a validation set.
+
+
+```{r}
+library(gridExtra)
+library(caret)
+library(rpart)
+library(RColorBrewer)
+library(rattle)
+library(ggplot2)
+library(randomForest) 
+library(rpart.plot)
+library(AppliedPredictiveModeling)
+library(parallel)
+library(doParallel)
+
+#load the training and testing data for pre-processing
+
+TrainingData <- read.csv("/Users/Work/Desktop/PracticalML/pml-training.csv", header=TRUE, stringsAsFactors=FALSE)
+
+#dimensions of training data
+dim(TrainingData)
+```
+
+##Data Cleaning and Reproducibility
+
+First we will check for features with missing data, as missing data can inhibit accuracy of predictions.  This is part of preprocessing which includes in this instance:
+
+1. Removing features with missing values.
+2. Removing features with variance of less than 25%
+3. Centering and scaling data prior to building and applying the predication algorithm.
+
+Prior to step 3, (i) data is split into training and validation sets using a seed set at 1234, so analysis is reproducible, (ii) a data visualization is performed.  
+
+```{r}
+
+isMissing <- sapply(TrainingData, function(x) any(is.na(x) | x== ""))
+isPredictor <- !isMissing & grepl("belt|[^(fore) ] arm |dumbell | forearm", names(isMissing))
+featureCandidates <- names(isMissing)[isPredictor]
+
+dataInclude <- c("classe", featureCandidates)
+featureData <- TrainingData[dataInclude] #now all data is selected for 13 features
+dim(featureData) #14 columns, 19622 observations
+str(featureData) #make sure "classe" is still present
+
+#confirm numerically that none of selected features have near-zero variances
+
+nzv <- nearZeroVar(featureData, saveMetrics=TRUE)
+summary(nzv) 
+
+featureData2 <- TrainingData[featureCandidates]
+descrCor <- cor(featureData2)
+perfectCorFeatures <- sum(abs(descrCor[upper.tri(descrCor)]) > 0.999) 
+perfectCorFeatures
+
+highCorFeatures <- findCorrelation(descrCor, cutoff = 0.75)
+highCorFeatures 
+
+classe <- featureData$classe
+filteredFeatures <- cbind(classe, (featureData[,-(findCorrelation(descrCor, cutoff=0.75))])) 
+
+#creation of Training and Validation data using 5 resamples
+set.seed(1234)
+
+trainIndex <- createDataPartition(filteredFeatures$classe, p=0.6, list=FALSE, times=5) #here we created a 60/40% split with 5 resamplings
+
+dataTrain <- filteredFeatures[trainIndex,]
+dataValidate <- filteredFeatures[-trainIndex,]
+
+```
+
+Step 1 & 2 of reduction of dimensionality are complete. We have now created a training and validation data sets which has only 7 features and classe (classification for exercise performance) for our prediction model compared to the raw data with 160 features.  Pretty good reduction of dimensionality! 
+
+Next we can do a visualization of the training data to see if any patterns emerge which might suggest a classification algorithm will work well.  For the final analysis we will test both classification and random forest since accuracy is will be graded and our model is relatively non-complex.  
+
+```{r, echo=FALSE}
+plt1 <- ggplot(dataTrain, aes(factor(classe), dataTrain$roll_belt)) + geom_violin(aes(fill=classe)) + theme_bw() + theme(legend.position="none")
+plt1 <- plt1 + labs(x="Classe", y="Roll Belt") 
+
+plt2 <- ggplot(dataTrain, aes(factor(classe), dataTrain$total_accel_belt)) + geom_violin(aes(fill=classe)) + theme_bw() + theme(legend.position="none")
+plt2 <- plt2 + labs(x="Classe", y="Total Acceleration Belt")
+
+plt3 <- ggplot(dataTrain, aes(factor(classe), dataTrain$gyros_belt_x)) + geom_violin(aes(fill=classe)) + theme_bw() + theme(legend.position="none")
+plt3 <- plt3 + labs(x="Classe", y="Gyros Belt X")
+
+plt4 <- ggplot(dataTrain, aes(factor(classe), dataTrain$gyros_belt_y)) + geom_violin(aes(fill=classe)) + theme_bw() + theme(legend.position="none")
+plt4 <- plt4 + labs(x="Classe", y="Gryos Belt Y")
+
+plt5 <- ggplot(dataTrain, aes(factor(classe), dataTrain$magnet_belt_z)) + geom_violin(aes(fill=classe)) + theme_bw() + theme(legend.position="none")
+plt5 <- plt5 + labs(x="Classe", y="Gyros Belt Z")
+
+plt6 <- ggplot(dataTrain, aes(factor(classe), dataTrain$accel_belt_x)) + geom_violin(aes(fill=classe)) + theme_bw() + theme(legend.position="none")
+plt6 <- plt6 + labs(x="Classe", y="Acceleration Belt X")
+
+plt7 <- ggplot(dataTrain, aes(factor(classe), dataTrain$magnet_belt_y)) + geom_violin(aes(fill=classe)) + theme_bw() + theme(legend.position="none")
+plt7 <- plt7 + labs(x="Classe", y="Magnet Belt Y")
+
+plt8 <- ggplot(dataTrain, aes(factor(classe), dataTrain$magnet_belt_z)) + geom_violin(aes(fill=classe)) + theme_bw() + theme(legend.position="none") + labs(x = "Classe", y ="Magnet Belt Z")
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+    library(grid)
+    
+    # Make a list from the ... arguments and plotlist
+    plots <- c(list(...), plotlist)
+    
+    numPlots = length(plots)
+    
+    # If layout is NULL, then use 'cols' to determine layout
+    if (is.null(layout)) {
+        # Make the panel
+        # ncol: Number of columns of plots
+        # nrow: Number of rows needed, calculated from # of cols
+        layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                         ncol = cols, nrow = ceiling(numPlots/cols))
+    }
+    
+    if (numPlots==1) {
+        print(plots[[1]])
+        
+    } else {
+        # Set up the page
+        grid.newpage()
+        pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+        
+        # Make each plot, in the correct location
+        for (i in 1:numPlots) {
+            # Get the i,j matrix positions of the regions that contain this subplot
+            matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+            
+            print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                            layout.pos.col = matchidx$col))
+        }
+    }
+}
+
+multiplot(plt1, plt2, cols=2)
+multiplot(plt3, plt4, cols=2)
+multiplot(plt5, plt6, cols=2)
+multiplot(plt6, plt7, cols=2)
+multiplot(plt8, cols=2)
+```
+
+##Building Two Models Based on Classification or Random Forest Algorithms
+
+From the visualization, one can see that some features clearly differ depending upon classe of exercise, suggesting a classification tree might be appropriate.  However random forest models still tend to be more accurate so both will be tested.  
+
+The next step will be to take the visualized and partitioned data to develop our algorithms.  The R package "caret" has a helpful feature which allows our model to use data than has been centered and scaled during model building.  After the models are built, both are saved to a file for later use on test data.  To decide between the two models, cross validation is performed on the validation data created above in the data preprocessing steps.
+
+A confusion matrix will help determine which algorithm is choosen to apply to the test data.
+
+```{r}
+clusters <- makeCluster(detectCores() -1)
+registerDoParallel(clusters)
+
+ctrl <- trainControl(classProbs = TRUE, savePredictions = TRUE, allowParallel = TRUE)
+
+method <- "rpart"
+
+system.time(ModelClassTree <- train(classe ~., preProcess=c("center", "scale"), data=dataTrain, method="rpart"))
+
+ModelClassTree
+
+predictedClassTree <- predict(ModelClassTree, dataValidate)
+
+cmCT <- confusionMatrix(predictedClassTree, dataValidate$classe)
+cmCT
+
+stopCluster(clusters)
+
+varImp(ModelClassTree)
+ModelClassTree$finalModel
+
+#estimated error rate : 
+
+save(ModelClassTree, file="ModelClassTree.RData")
+```
+
+###Assessment of Classification Tree Model
+
+The confusion matrix created for our first prediction algorithm shows an overall accuracy of 36% with a 95% Confidence interval of (29.5%-43.3%).  Assessment of the balanced accuracy shows the percent for classe E is 78% but for classe A-D the balanced accuracy is only 50-59%.
+
+This is clearly not a great model! If one looks back at the visualization results and varible importance its clear why this may be the case.  The roll-belt has an overall importance of 100% while the other features range from 0-57.9%.  
+
+The model could be improved by a reassessment of features, but again, CART models tend to be less accurate, so next a random forrest model is assessed.    
+
+Error Rates are calculated as 1-overall accuracy of the prediction algorithm.  For the CART model presented here the error rate is 1-0.36=0.64 or 64%.  The confidence interval for the error rate is 1-0.433=0.567 to 1-0.295= 0.705 or 56%-70.5% 
+
+###Assessment of a Random Forrest Model
+
+To improve our accuracy, while maintaining scalability (the speed at which our algorithm runs), we will next train and validate an Random Forrest Model on training and validation data respectively.
+
+
+```{r}
+
+#########Train the Prediction Model Random Forest##############
+
+clusters <- makeCluster(detectCores() -1)
+registerDoParallel(clusters)
+
+ctrl <- trainControl(classProbs = TRUE, savePredictions = TRUE, allowParallel = TRUE)
+
+method <- "rf"
+
+system.time(ModelRF <- train(classe ~., preProcess=c("center", "scale"), data=dataTrain, method="rf"))
+
+ModelRF
+
+predictedRF <- predict(ModelRF, dataValidate)
+
+cmRF <- confusionMatrix(predictedRF, dataValidate$classe)
+cmRF
+
+varImp(ModelRF)
+ModelClassTree$finalModel
+
+stopCluster(clusters)
+
+#estimated error rate : 
+
+save(ModelRF, file="ModelRF.RData")
+```
+
+The confusion matrix for our second algorithm shows an overall accuracy rate of: 70.4% and classe accuracy rates of: 70-95%. This is a large jump from accuracy of the classification tree model.
+
+The overall error rate is: 1-0.704= 29.6%
+
+The overall confidence interval for the error rate is: (1-0.766 to 1-0.635) or 23.4-36.5%.
+
+###Final Algorithm Choice
+
+Because of the better accuracy, while maintaining scalability, the Random Forrest algorithm will be used to predict results on our test data and output those files with single letter answers for submission.
+
+```{r}
+
+########Predict with chosen model on test data############
+
+TestingData <- read.csv("/Users/Work/Desktop/PracticalML/pml-testing.csv", header=TRUE, stringsAsFactors=FALSE)
+
+load(file="ModelRF.RData", verbose=FALSE)
+
+predictFinal <- predict(ModelRF, TestingData)
+predictCT <- predict(ModelClassTree, TestingData)
+
+#Write files for submission
+pml_write_files = function(x){
+    n=length(x)
+    for (i in 1:n){
+        filename=paste("problem_id_", i, ".txt")
+        write.table(x[i], file=filename, quote=FALSE, row.names=FALSE, col.names=FALSE)
+    }
+}
+
+pml_write_files(predictFinal)
+pml_write_files(predictCT)
+```
+
+##Conclusion
+
+While dimensionality of the data was reduced, this may have affected the accuracy of the classification tree model.  However in order to preserve speed and scalability, a reduction in the dimensionality of the data was performed and kept. As an added way to improve performance, parallel R package was used and code was run on clusters.
+
+Data output was submitted to project site for testing and about 90% of the answers scored correctly on the test data set.  This suggest that either there may be some slight skew (i.e. more of the classes with higher accuracy were present in the test data) or the random forrest model slightly under-fit the training data. The test data set is only 20 and thus a larger test set might be helpful for a final diagnosis.  
+
+For full code see github repository with html, r-markdown and raw R files.
