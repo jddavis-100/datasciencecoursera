@@ -1,0 +1,154 @@
+##Run Analysis R, a Script to Clean and Tidy Activity Data
+
+The script performs the following tasks: 
+
+1. merges the training and test sets to create one data set.
+2. extracts the measurements on the mean and std dev for each measurement.
+3. uses descriptive activity names to name the activities in the data set
+4. appropriately labels the data set with descriptive variable names
+5. from the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+
+Information about the dataset can be found at the repository:
+
+http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones
+
+###Merging the Data Sets
+
+Merge the training and test sets to create one data set and #3, use descriptive activity names to name the activities in the data set, and #4 appropriately labels the data set with descriptive variable names.  The following script below accomplishes this task.
+
+```{r}
+X_train <- read.table("~/Downloads/UCI HAR Dataset/train/X_train.txt", quote="\"", stringsAsFactors=FALSE)
+
+X_test <- read.table("~/Downloads/UCI HAR Dataset/test/X_test.txt", quote="\"", stringsAsFactors=FALSE)
+
+library(tidyr)
+library(dplyr)
+library(reshape2)
+library(data.table)
+
+X_all <- bind_rows(X_train, X_test) #add all the training and test data together
+View(X_all)
+```
+
+Now I name the columns something reasonable that indicates the data type.
+
+```{r}
+features <- read.table("~/Downloads/UCI HAR Dataset/features.txt", quote="\"", stringsAsFactors=FALSE)
+View(features)
+names(X_all) = features$V2
+
+subject_train <- read.table("~/Downloads/UCI HAR Dataset/train/subject_train.txt", quote="\"", stringsAsFactors=FALSE)
+subject_test <- read.table("~/Downloads/UCI HAR Dataset/test/subject_test.txt", quote="\"")
+
+subject_all <- bind_rows(subject_train, subject_test) #combine as before in the x train and test sets
+
+activity_labels <- read.table("~/Downloads/UCI HAR Dataset/activity_labels.txt", quote="\"", stringsAsFactors=FALSE)
+
+View(activity_labels)
+
+subject_activity <- full_join(subject_all, activity_labels) #descriptive activity names for all the activities in the data set on each subject
+
+subject.no <- subject_activity$V1
+activity <- subject_activity$V2
+subject.activity <- data.frame(subject.no, activity)
+all_data <- cbind(as.data.table(X_all),(subject_activity))
+```
+
+There are now two complete, corresponding data frames, one with all the X data and one with all the subject activity data by number and label
+
+The next task is accomplished by joining the data to make one large data set.
+
+```{r}
+y_train <- read.table("~/Downloads/UCI HAR Dataset/train/y_train.txt", quote="\"", stringsAsFactors=FALSE)
+y_test <- read.table("~/Downloads/UCI HAR Dataset/train/y_train.txt", quote="\"", stringsAsFactors=FALSE)
+
+y_all <- bind_rows(y_train, y_test) #add all the training and test data together
+View(y_all)
+```
+
+As a precautionary step, just for good measure, I create .csv output files to save and check data or to send to those who prefer other data analysis methods
+
+```{r}
+write.csv(all_data, "all_data.csv")
+write.csv(subject_activity, "subject_activity.csv")
+write.csv(y_all, "all_y_data.csv")
+```
+
+The next few scripts extracts measurements on the mean and std for each measurement; labels correctly with descriptive name. The first 6 columns in the all_data set have the mean and std, the rest are other measurements or quantiles.  Below is a new data set giving just these measurements.
+
+
+```{r}
+mean <- select(all_data, contains("mean"))
+std <- select(all_data, contains("std"))
+mean.std <- cbind(as.data.table(mean),(std))
+mean.std.subject.activity <- cbind(as.data.table(mean.std), (subject.activity))
+
+write.csv(mean.std.subject.activity, "mean.std.subject.activity.csv")
+```
+
+Create a tidy data set with average of each variable for each activity by each subject and save it as a text file.  Now you have a data file ready for further analysis.
+
+```{r}
+tidy <- na.omit(mean.std.subject.activity) #data set has no missing variables and contains all the means (averages) and std for each subject by activity in which they participated
+
+write.table(tidy, row.name=FALSE, "tidy.txt")
+```
+##Code Book
+
+Some General Information: Data come from "Human Activity Recognition database built from the recordings of 30 subjects performing activities of daily living (ADL) while carrying a waist-mounted smartphone with embedded inertial sensors." Which was supplied by UCI Center for Machine Learning and Intelligent Systems.
+
+The master data set contains a multivariate, time-series type data of 10299 instances, for 561 attributes over 30 subjects. The source of the data is from smart-phone activity and provided by the individuals below:
+
+Jorge L. Reyes-Ortiz(1,2), Davide Anguita(1), Alessandro Ghio(1), Luca Oneto(1) and Xavier Parra(2)
+1 - Smartlab - Non-Linear Complex Systems Laboratory
+DITEN - Università degli Studi di Genova, Genoa (I-16145), Italy. 
+2 - CETpD - Technical Research Centre for Dependency Care and Autonomous Living
+Universitat Politècnica de Catalunya (BarcelonaTech). Vilanova i la Geltrú (08800), Spain
+activityrecognition '@' smartlab.ws
+
+From the UCI site we have the following information:
+
+Data Set Information:
+
+The experiments have been carried out with a group of 30 volunteers within an age bracket of 19-48 years. Each person performed six activities (WALKING, WALKING_UPSTAIRS, WALKING_DOWNSTAIRS, SITTING, STANDING, LAYING) wearing a smartphone (Samsung Galaxy S II) on the waist. Using its embedded accelerometer and gyroscope, we captured 3-axial linear acceleration and 3-axial angular velocity at a constant rate of 50Hz. The experiments have been video-recorded to label the data manually. The obtained dataset has been randomly partitioned into two sets, where 70% of the volunteers was selected for generating the training data and 30% the test data. 
+
+The sensor signals (accelerometer and gyroscope) were pre-processed by applying noise filters and then sampled in fixed-width sliding windows of 2.56 sec and 50% overlap (128 readings/window). The sensor acceleration signal, which has gravitational and body motion components, was separated using a Butterworth low-pass filter into body acceleration and gravity. The gravitational force is assumed to have only low frequency components, therefore a filter with 0.3 Hz cutoff frequency was used. From each window, a vector of features was obtained by calculating variables from the time and frequency domain.
+
+A video of the experiment including an example of the 6 recorded activities with one of the participants can be seen in the following link: http://www.youtube.com/watch?v=XOEN9W05_4A.
+
+###Attribute Information:
+
+For each record in the dataset it is provided: 
+- Triaxial acceleration from the accelerometer (total acceleration) and the estimated body acceleration. 
+- Triaxial Angular velocity from the gyroscope. 
+- A 561-feature vector with time and frequency domain variables. 
+- Its activity label. 
+- An identifier of the subject who carried out the experiment.
+
+###Relevant Papers:
+
+Davide Anguita, Alessandro Ghio, Luca Oneto, Xavier Parra and Jorge L. Reyes-Ortiz. Human Activity Recognition on Smartphones using a Multiclass Hardware-Friendly Support Vector Machine. International Workshop of Ambient Assisted Living (IWAAL 2012). Vitoria-Gasteiz, Spain. Dec 2012 
+
+Davide Anguita, Alessandro Ghio, Luca Oneto, Xavier Parra, Jorge L. Reyes-Ortiz. Energy Efficient Smartphone-Based Activity Recognition using Fixed-Point Arithmetic. Journal of Universal Computer Science. Special Issue in Ambient Assisted Living: Home Care. Volume 19, Issue 9. May 2013
+
+Davide Anguita, Alessandro Ghio, Luca Oneto, Xavier Parra and Jorge L. Reyes-Ortiz. Human Activity Recognition on Smartphones using a Multiclass Hardware-Friendly Support Vector Machine. 4th International Workshop of Ambient Assited Living, IWAAL 2012, Vitoria-Gasteiz, Spain, December 3-5, 2012. Proceedings. Lecture Notes in Computer Science 2012, pp 216-223. 
+
+Jorge Luis Reyes-Ortiz, Alessandro Ghio, Xavier Parra-Llanas, Davide Anguita, Joan Cabestany, Andreu Català. Human Activity and Motion Disorder Recognition: Towards Smarter Interactive Cognitive Environments. 21th European Symposium on Artificial Neural Networks, Computational Intelligence and Machine Learning, ESANN 2013. Bruges, Belgium 24-26 April 2013.
+
+###Citation Request:
+
+Davide Anguita, Alessandro Ghio, Luca Oneto, Xavier Parra and Jorge L. Reyes-Ortiz. A Public Domain Dataset for Human Activity Recognition Using Smartphones. 21th European Symposium on Artificial Neural Networks, Computational Intelligence and Machine Learning, ESANN 2013. Bruges, Belgium 24-26 April 2013.
+
+####Tidy Data Set Information
+
+The tidy dataset, output called tidy.txt was created in the following manner:
+
+One R script called run_analysis.R that does the following. 
+
+1. Merges the training and the test sets to create one data set.
+2. Extracts only the measurements on the mean and standard deviation for each measurement. 
+3. Uses descriptive activity names to name the activities in the data set
+4. Appropriately labels the data set with descriptive variable names. 
+5. From the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+
+The descriptive variable names were taken from the original data set and modified so that they would provide information about the observation and variable.
